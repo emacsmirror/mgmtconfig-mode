@@ -38,6 +38,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -81,6 +82,8 @@ const (
 var (
 	testMutex   *sync.Mutex     // guards testCounter
 	testCounter map[string]uint // counts how many times each test ran
+
+	testMemoryAddressRegexp = regexp.MustCompile(`0x[0-9a-f]+`)
 )
 
 func init() {
@@ -867,6 +870,22 @@ func TestAstFunc2(t *testing.T) {
 				}
 				return false // unexpected
 			}
+			foundStreamErr := func(s string) bool {
+				const nilPtr = "0x0000000000"
+
+				for _, x := range expstrs {
+					if x == s {
+						return true // matched!
+					}
+					if !strings.Contains(x, nilPtr) {
+						continue
+					}
+					if x == testMemoryAddressRegexp.ReplaceAllString(s, nilPtr) {
+						return true // matched!
+					}
+				}
+				return false // unexpected
+			}
 
 			fail := errStr != ""
 			expstr = strings.Trim(expstr, "\n")
@@ -1350,14 +1369,13 @@ func TestAstFunc2(t *testing.T) {
 				}
 				if failStream && err != nil {
 					t.Logf("test #%d: stream errored: %+v", index, err)
-					// Stream errors often have pointers in them, so don't compare for now.
-					//s := err.Error() // convert to string
-					//if !foundErr(s) {
-					//	t.Errorf("test #%d: FAIL", index)
-					//	t.Errorf("test #%d: expected different error", index)
-					//	t.Logf("test #%d: err: %s", index, s)
-					//	t.Logf("test #%d: exp: %s", index, expstr)
-					//}
+					s := err.Error() // convert to string
+					if !foundStreamErr(s) {
+						t.Errorf("test #%d: FAIL", index)
+						t.Errorf("test #%d: expected different error", index)
+						t.Logf("test #%d: err: %s", index, s)
+						t.Logf("test #%d: exp: %s", index, expstr)
+					}
 
 					// multiline error matching from logf
 					if s := expFilter(expstr); s != "" && !strings.Contains(logCache, s) {
