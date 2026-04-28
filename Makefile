@@ -237,15 +237,21 @@ $(PROGRAM).static: $(GO_FILES) $(MCL_FILES) $(MISC_FILES) $(PO_FILES) go.mod go.
 	go generate
 	go build $(TRIMPATH) -a -installsuffix cgo -tags netgo -ldflags '-extldflags "-static" -X main.program=$(PROGRAM) -X main.version=$(SVERSION) -s -w' -o $(PROGRAM).static $(BUILD_FLAGS);
 
+# Export these target-specific variables to the recursive make below.
+export LDFLAGS BUILD_FLAGS
+
 build: LDFLAGS=-s -w ## build a fresh mgmt binary
-build: $(PROGRAM)
+build: lang resources funcgen
+	@$(MAKE) --no-print-directory $(PROGRAM)
 
 build-debug: LDFLAGS=
-build-debug: $(PROGRAM)
+build-debug: lang resources funcgen
+	@$(MAKE) --no-print-directory $(PROGRAM)
 
 # if you're using the bad/dev branch, you might want this too!
 baddev: BUILD_FLAGS = -tags 'noaugeas novirt'
-baddev: $(PROGRAM)
+baddev: lang resources funcgen
+	@$(MAKE) --no-print-directory $(PROGRAM)
 
 # pattern rule target for (cross)building, mgmt-OS-ARCH will be expanded to the correct build
 # extract os and arch from target pattern
@@ -265,7 +271,8 @@ build/mgmt-%: $(GO_FILES) $(MCL_FILES) $(MISC_FILES) $(PO_FILES) go.mod go.sum |
 # GOOSARCHES='linux/arm64' GOTAGS='noaugeas novirt' make crossbuild
 # and the output will end up in build/
 crossbuild_targets = $(addprefix build/mgmt-,$(subst /,-,${GOOSARCHES}))
-crossbuild: ${crossbuild_targets}
+crossbuild: lang resources funcgen
+	@$(MAKE) --no-print-directory ${crossbuild_targets}
 
 clean: ## clean things up
 	$(MAKE) --quiet -C test clean
